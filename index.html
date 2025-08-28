@@ -131,18 +131,21 @@
 
     // === ADMIN FUNCTIONS ===
     function createCustomer(){
-      let email=custEmail.value, pass=custPass.value, bal=+custBalance.value;
+      let email=custEmail.value.trim(), pass=custPass.value.trim(), bal=+custBalance.value;
+      if(!email||!pass||isNaN(bal)){alert("Fill all fields properly");return;}
       auth.createUserWithEmailAndPassword(email, pass)
       .then(cred=>{
         let uid=cred.user.uid;
-        let acc="AC"+Math.floor(Math.random()*1000000);
-        db.ref("customers/"+uid).set({email,acc,balance:bal});
+        let acc="AC"+Date.now(); // unique
+        db.ref("customers/"+uid).set({email,acc,balance:bal,role:"customer"});
+        custEmail.value=custPass.value=custBalance.value="";
         alert("Account created: "+acc);
       })
       .catch(e=>alert(e.message));
     }
     function deposit(){
-      let acc=adminAcc.value, amt=+adminAmt.value;
+      let acc=adminAcc.value.trim(), amt=+adminAmt.value;
+      if(!acc||isNaN(amt)||amt<=0){alert("Invalid input");return;}
       db.ref("customers").once("value",snap=>{
         snap.forEach(c=>{
           if(c.val().acc===acc){
@@ -150,30 +153,37 @@
             db.ref("customers/"+c.key+"/balance").set(bal);
             let t={type:"Deposit",amt,date:new Date().toLocaleString()};
             db.ref("customers/"+c.key+"/txns").push(t);
-            addAdminTxn(acc,t);
           }
         });
       });
+      adminAcc.value=adminAmt.value="";
     }
     function withdraw(){
-      let acc=adminAcc.value, amt=+adminAmt.value;
+      let acc=adminAcc.value.trim(), amt=+adminAmt.value;
+      if(!acc||isNaN(amt)||amt<=0){alert("Invalid input");return;}
       db.ref("customers").once("value",snap=>{
         snap.forEach(c=>{
           if(c.val().acc===acc){
             let bal=c.val().balance-amt;
-            if(bal<0){alert("Insufficient");return;}
+            if(bal<0){alert("Insufficient funds");return;}
             db.ref("customers/"+c.key+"/balance").set(bal);
             let t={type:"Withdraw",amt,date:new Date().toLocaleString()};
             db.ref("customers/"+c.key+"/txns").push(t);
-            addAdminTxn(acc,t);
           }
         });
       });
+      adminAcc.value=adminAmt.value="";
     }
-    function addAdminTxn(acc,t){
-      let row=`<tr><td>${acc}</td><td>${t.type}</td><td>${t.amt}</td><td>${t.date}</td></tr>`;
-      adminTxns.querySelector("tbody").insertAdjacentHTML("afterbegin",row);
-    }
+
+    // Load all transactions for Admin
+    db.ref("customers").on("child_added", snap=>{
+      let acc = snap.val().acc;
+      db.ref("customers/"+snap.key+"/txns").on("child_added", s=>{
+        let t=s.val();
+        let row=`<tr><td>${acc}</td><td>${t.type}</td><td>${t.amt}</td><td>${t.date}</td></tr>`;
+        adminTxns.querySelector("tbody").insertAdjacentHTML("afterbegin",row);
+      });
+    });
 
     // === CUSTOMER FUNCTIONS ===
     let currentUser=null;
@@ -198,6 +208,8 @@
       customerCard.classList.remove("hidden");
       custActions.classList.remove("hidden");
       custTxnCard.classList.remove("hidden");
+      // Clear old rows
+      custTxns.querySelector("tbody").innerHTML="";
       db.ref("customers/"+currentUser.uid).on("value",snap=>{
         let d=snap.val();
         custAccNo.textContent=d.acc;
@@ -211,22 +223,26 @@
     }
     function custDeposit(){
       let amt=+custAmt.value;
+      if(isNaN(amt)||amt<=0){alert("Invalid amount");return;}
       db.ref("customers/"+currentUser.uid).once("value",snap=>{
         let bal=snap.val().balance+amt;
         db.ref("customers/"+currentUser.uid+"/balance").set(bal);
         let t={type:"Deposit",amt,date:new Date().toLocaleString()};
         db.ref("customers/"+currentUser.uid+"/txns").push(t);
       });
+      custAmt.value="";
     }
     function custWithdraw(){
       let amt=+custAmt.value;
+      if(isNaN(amt)||amt<=0){alert("Invalid amount");return;}
       db.ref("customers/"+currentUser.uid).once("value",snap=>{
         let bal=snap.val().balance-amt;
-        if(bal<0){alert("Insufficient");return;}
+        if(bal<0){alert("Insufficient funds");return;}
         db.ref("customers/"+currentUser.uid+"/balance").set(bal);
         let t={type:"Withdraw",amt,date:new Date().toLocaleString()};
         db.ref("customers/"+currentUser.uid+"/txns").push(t);
       });
+      custAmt.value="";
     }
   </script>
 </body>
