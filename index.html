@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>FirstTrust Bank</title>
+  <style>
+    :root {
+      --bg:#f4f7fb; --card:#fff; --brand:#004080;
+      --brand-2:#0066cc; --text:#333; --muted:#777;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;font-family:sans-serif;}
+    body{background:var(--bg);color:var(--text);}
+    header{background:var(--brand);color:#fff;padding:1rem;text-align:center;}
+    nav{margin-top:.5rem;}
+    nav button{margin:0 .5rem;padding:.5rem 1rem;border:0;border-radius:6px;background:var(--brand-2);color:#fff;cursor:pointer;}
+    nav button.active{background:#fff;color:var(--brand);}
+    main{padding:1rem;}
+    .card{background:var(--card);padding:1rem;margin:1rem auto;max-width:600px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1);}
+    h2{margin-bottom:1rem;color:var(--brand);}
+    label{display:block;margin:.5rem 0 .2rem;}
+    input,select{width:100%;padding:.5rem;border:1px solid #ccc;border-radius:6px;}
+    button.action{margin-top:1rem;padding:.5rem 1rem;border:0;border-radius:6px;background:var(--brand-2);color:#fff;cursor:pointer;}
+    table{width:100%;border-collapse:collapse;margin-top:1rem;}
+    table,th,td{border:1px solid #ccc;}
+    th,td{padding:.5rem;text-align:left;}
+    .hidden{display:none;}
+    footer{text-align:center;padding:1rem;font-size:.9rem;color:var(--muted);}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FirstTrust Bank</h1>
+    <nav>
+      <button id="homeTab" class="active">Home</button>
+      <button id="adminTab">Admin Panel</button>
+      <button id="customerTab">Customer Panel</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- HOME -->
+    <section id="homeSection" class="card">
+      <h2>Welcome to FirstTrust Bank</h2>
+      <p>Secure online banking with real-time account management.</p>
+    </section>
+
+    <!-- ADMIN PANEL -->
+    <section id="adminSection" class="hidden">
+      <div class="card">
+        <h2>Admin Dashboard</h2>
+        <label>Customer Email</label><input id="custEmail" type="email"/>
+        <label>Password</label><input id="custPass" type="password"/>
+        <label>Initial Balance</label><input id="custBalance" type="number"/>
+        <button class="action" onclick="createCustomer()">Create Account</button>
+      </div>
+      <div class="card">
+        <h2>Admin Actions</h2>
+        <label>Account Number</label><input id="adminAcc" />
+        <label>Amount</label><input id="adminAmt" type="number"/>
+        <button class="action" onclick="deposit()">Deposit</button>
+        <button class="action" onclick="withdraw()">Withdraw</button>
+      </div>
+      <div class="card">
+        <h2>All Transactions</h2>
+        <table id="adminTxns"><thead><tr><th>Acc</th><th>Type</th><th>Amt</th><th>Date</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <!-- CUSTOMER PANEL -->
+    <section id="customerSection" class="hidden">
+      <div class="card" id="loginCard">
+        <h2>Customer Login</h2>
+        <label>Email</label><input id="loginEmail" type="email"/>
+        <label>Password</label><input id="loginPass" type="password"/>
+        <button class="action" onclick="login()">Login</button>
+      </div>
+      <div class="card hidden" id="customerCard">
+        <h2>My Account</h2>
+        <p><b>Account No:</b> <span id="custAccNo"></span></p>
+        <p><b>Balance:</b> ₹<span id="custBalanceDisplay">0</span></p>
+        <button class="action" onclick="logout()">Logout</button>
+      </div>
+      <div class="card hidden" id="custActions">
+        <h2>Actions</h2>
+        <label>Amount</label><input id="custAmt" type="number"/>
+        <button class="action" onclick="custDeposit()">Deposit</button>
+        <button class="action" onclick="custWithdraw()">Withdraw</button>
+      </div>
+      <div class="card hidden" id="custTxnCard">
+        <h2>My Transactions</h2>
+        <table id="custTxns"><thead><tr><th>Type</th><th>Amt</th><th>Date</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+  </main>
+
+  <footer>&copy; <span id="year"></span> FirstTrust Bank</footer>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js"></script>
+  <script>
+    // === CONFIG ===
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+      projectId: "YOUR_PROJECT",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "123456",
+      appId: "1:123456:web:abcdef"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Tab switching
+    function show(section){
+      document.getElementById("homeSection").classList.add("hidden");
+      document.getElementById("adminSection").classList.add("hidden");
+      document.getElementById("customerSection").classList.add("hidden");
+      section.classList.remove("hidden");
+      document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));
+    }
+    homeTab.onclick=()=>{show(homeSection);homeTab.classList.add("active")};
+    adminTab.onclick=()=>{show(adminSection);adminTab.classList.add("active")};
+    customerTab.onclick=()=>{show(customerSection);customerTab.classList.add("active")};
+
+    // === ADMIN FUNCTIONS ===
+    function createCustomer(){
+      let email=custEmail.value, pass=custPass.value, bal=+custBalance.value;
+      auth.createUserWithEmailAndPassword(email, pass)
+      .then(cred=>{
+        let uid=cred.user.uid;
+        let acc="AC"+Math.floor(Math.random()*1000000);
+        db.ref("customers/"+uid).set({email,acc,balance:bal});
+        alert("Account created: "+acc);
+      })
+      .catch(e=>alert(e.message));
+    }
+    function deposit(){
+      let acc=adminAcc.value, amt=+adminAmt.value;
+      db.ref("customers").once("value",snap=>{
+        snap.forEach(c=>{
+          if(c.val().acc===acc){
+            let bal=c.val().balance+amt;
+            db.ref("customers/"+c.key+"/balance").set(bal);
+            let t={type:"Deposit",amt,date:new Date().toLocaleString()};
+            db.ref("customers/"+c.key+"/txns").push(t);
+            addAdminTxn(acc,t);
+          }
+        });
+      });
+    }
+    function withdraw(){
+      let acc=adminAcc.value, amt=+adminAmt.value;
+      db.ref("customers").once("value",snap=>{
+        snap.forEach(c=>{
+          if(c.val().acc===acc){
+            let bal=c.val().balance-amt;
+            if(bal<0){alert("Insufficient");return;}
+            db.ref("customers/"+c.key+"/balance").set(bal);
+            let t={type:"Withdraw",amt,date:new Date().toLocaleString()};
+            db.ref("customers/"+c.key+"/txns").push(t);
+            addAdminTxn(acc,t);
+          }
+        });
+      });
+    }
+    function addAdminTxn(acc,t){
+      let row=`<tr><td>${acc}</td><td>${t.type}</td><td>${t.amt}</td><td>${t.date}</td></tr>`;
+      adminTxns.querySelector("tbody").insertAdjacentHTML("afterbegin",row);
+    }
+
+    // === CUSTOMER FUNCTIONS ===
+    let currentUser=null;
+    function login(){
+      auth.signInWithEmailAndPassword(loginEmail.value, loginPass.value)
+      .then(res=>{
+        currentUser=res.user;
+        loadCustomer();
+      }).catch(e=>alert(e.message));
+    }
+    function logout(){
+      auth.signOut().then(()=>{
+        currentUser=null;
+        loginCard.classList.remove("hidden");
+        customerCard.classList.add("hidden");
+        custActions.classList.add("hidden");
+        custTxnCard.classList.add("hidden");
+      });
+    }
+    function loadCustomer(){
+      loginCard.classList.add("hidden");
+      customerCard.classList.remove("hidden");
+      custActions.classList.remove("hidden");
+      custTxnCard.classList.remove("hidden");
+      db.ref("customers/"+currentUser.uid).on("value",snap=>{
+        let d=snap.val();
+        custAccNo.textContent=d.acc;
+        custBalanceDisplay.textContent=d.balance;
+      });
+      db.ref("customers/"+currentUser.uid+"/txns").on("child_added",s=>{
+        let t=s.val();
+        let row=`<tr><td>${t.type}</td><td>${t.amt}</td><td>${t.date}</td></tr>`;
+        custTxns.querySelector("tbody").insertAdjacentHTML("afterbegin",row);
+      });
+    }
+    function custDeposit(){
+      let amt=+custAmt.value;
+      db.ref("customers/"+currentUser.uid).once("value",snap=>{
+        let bal=snap.val().balance+amt;
+        db.ref("customers/"+currentUser.uid+"/balance").set(bal);
+        let t={type:"Deposit",amt,date:new Date().toLocaleString()};
+        db.ref("customers/"+currentUser.uid+"/txns").push(t);
+      });
+    }
+    function custWithdraw(){
+      let amt=+custAmt.value;
+      db.ref("customers/"+currentUser.uid).once("value",snap=>{
+        let bal=snap.val().balance-amt;
+        if(bal<0){alert("Insufficient");return;}
+        db.ref("customers/"+currentUser.uid+"/balance").set(bal);
+        let t={type:"Withdraw",amt,date:new Date().toLocaleString()};
+        db.ref("customers/"+currentUser.uid+"/txns").push(t);
+      });
+    }
+  </script>
+</body>
+</html>
